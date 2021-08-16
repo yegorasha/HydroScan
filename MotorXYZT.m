@@ -24,6 +24,8 @@ classdef MotorXYZT < handle
         end
         
         function move(obj, motor_number, rel_distance)
+            fprintf('Moving motor %d by %5.2f\n', motor_number, rel_distance);
+            
             MotorStep = round( rel_distance * obj.calibr(motor_number) );
             MotorCmd = sprintf('C,S%1dM%d,I%1dM%d,R', motor_number, obj.motor_speed, motor_number, MotorStep);
             sendcmd2serial(obj, MotorCmd);
@@ -31,6 +33,7 @@ classdef MotorXYZT < handle
         end
         
         function sethome(obj)
+            disp('Setting motors home in current location')
             sendcmd2serial(obj, 'F,C,IA1M-0,IA2M-0,IA3M-0,IA4M-0,R')
             obj.curloc = [0 0 0 0];
         end
@@ -43,7 +46,7 @@ classdef MotorXYZT < handle
         function sendcmd2serial(obj, cmd)
             try,
                 disp(' * * *')
-                obj.seport
+%                 obj.seport
                 cmd
                 disp(' * * *')
 %                 fprintf(obj.seport, cmd);
