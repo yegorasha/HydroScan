@@ -12,15 +12,25 @@ classdef MotorXYZT < handle
     
     methods
         
-        function connect(obj, port)
+        function status = connect(obj, port)
+            status = 0;
             fprintf('Connecting to motor port %s\n',port)
-            %             obj.seport = serialport(port,'BaudRate',9600);
+            ports = serialportlist
+            if ~isempty(obj.seport)
+                delete(obj.seport);
+            end
+            try
+                obj.seport = serialport(port,9600);
+                sendcmd2serial(obj,'C,F,R');
+                status = 1;
+            catch
+                fprintf('ERROR connecting to motor port %s\n',port)
+            end
         end
         
         function disconnect(obj)
             fprintf('Disconnecting from motor port\n')
-            %             fclose(obj.seport);
-            %             delete(obj.seport);
+            delete(obj.seport);
         end
         
         function move(obj, motor_number, rel_distance)
@@ -45,11 +55,12 @@ classdef MotorXYZT < handle
         
         function sendcmd2serial(obj, cmd)
             try,
-                disp(' * * *')
+%                 disp(' * * *')
 %                 obj.seport
-                cmd
-                disp(' * * *')
+%                 cmd
+%                 disp(' * * *')
 %                 fprintf(obj.seport, cmd);
+                writeline(obj.seport, cmd);
             catch,
                 disp(sprintf('ERORR: %s failed',cmd))
             end
