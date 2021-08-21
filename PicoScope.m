@@ -73,7 +73,7 @@ classdef PicoScope < handle
             
         end
         
-        function configure_generator(obj, CarrierFrequency, NumberCycles)
+        function configure_generator(obj, CarrierFrequency_Hz, NumberCycles, RepeatFrequency_Hz, Amplitude_V, PulseType)
             %%
             % Obtain Signalgenerator group object. Signal Generator properties and functions
             % are located in the Instrument Driver's Signalgenerator group
@@ -82,21 +82,39 @@ classdef PicoScope < handle
             
             %%
             % Prepare arbitrary waveform for generator assuming certain repetition
-            % frequency and awgBufferSize: half of the buffer filled with 10 MHz tone
-            % and remaining half of the buffer filled with zero
-            RepetitionFrequency = 100000;
-            set(obj.sigGenGroupObj, 'startFrequency', RepetitionFrequency);
-            set(obj.sigGenGroupObj, 'stopFrequency', RepetitionFrequency);
+            % frequency and awgBufferSize
+%             RepeatFrequency_Hz = 100000;
+            set(obj.sigGenGroupObj, 'startFrequency', RepeatFrequency_Hz);
+            set(obj.sigGenGroupObj, 'stopFrequency', RepeatFrequency_Hz);
             set(obj.sigGenGroupObj, 'offsetVoltage', 0.0);
-            set(obj.sigGenGroupObj, 'peakToPeakVoltage', 4000.0);
+            set(obj.sigGenGroupObj, 'peakToPeakVoltage', Amplitude_V*1e3);
             
-            awgBufferSize = get(obj.sigGenGroupObj, 'awgBufferSize')
-            x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
             
-%             fc = CarrierFrequency; % Carrier frequency Hz
-            y = normalise(sin(CarrierFrequency/RepetitionFrequency*x)).*(CarrierFrequency/RepetitionFrequency*x<NumberCycles);
-            % this was the call to set waveform into generator
-            % [status.setSigGenArbitrarySimple] = invoke(sigGenGroupObj, 'setSigGenArbitrarySimple', y);
+            awgBufferSize = get(obj.sigGenGroupObj, 'awgBufferSize');
+%             x = 0:(2*pi)/(awgBufferSize - 1):2*pi;
+            t = (0:(2*pi)/(awgBufferSize - 1):2*pi)/RepeatFrequency_Hz/2/pi; % seconds
+            TendPulse = NumberCycles/CarrierFrequency_Hz;
+            
+%             y0 = sin(x*CarrierFrequency_Hz/RepeatFrequency_Hz).*( (x*CarrierFrequency_Hz/RepeatFrequency_Hz) < (2*pi*NumberCycles) );
+            y0 = sin(2*pi*CarrierFrequency_Hz*t).*( t < TendPulse  );
+            
+            switch PulseType
+                case 'Sinusoidal'    
+                    y1 = y0;
+                case 'Gaussian'
+                    Sigma = TendPulse/2 / (2*sqrt(2*log(2)));
+                    CenterPos = TendPulse/2;
+                    y1 = y0/sqrt(2*pi*Sigma).*exp(-(t-CenterPos).^2/2/Sigma^2);
+                case 'Chirp'
+                    F0 = CarrierFrequency_Hz/2;
+                    F1 = CarrierFrequency_Hz*2;
+                    
+                    y1 = chirp(t,F0,TendPulse,F1,'linear').*( t < TendPulse  );
+            end
+            
+            y = normalise(y1);
+            figure(11), plot(t*1e6,y), grid, title('DEBUG info')
+%             return
             
             %%
             % Set trigger parameters for signal generator. The first sample in the arbitrary
