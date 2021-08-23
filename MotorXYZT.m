@@ -6,7 +6,7 @@ classdef MotorXYZT < handle
         seport = [];
         curloc = [0 0 0 0];
         motor_speed = 2000;
-        calibr = [[1 1 1]/(0.00025*25.4) 1/(0.0100)]; % step/mm and last one step/degree
+        calibr = [[1 1 1]/(0.00025*25.4/4) 1/(0.0100)]; % step/mm and last one step/degree
         % Velmex stages
     end
     
@@ -33,13 +33,22 @@ classdef MotorXYZT < handle
             delete(obj.seport);
         end
         
-        function move(obj, motor_number, rel_distance)
+        function move_relative(obj, motor_number, rel_distance)
             fprintf('Moving motor %d by %5.2f\n', motor_number, rel_distance);
             
             MotorStep = round( rel_distance * obj.calibr(motor_number) );
             MotorCmd = sprintf('C,S%1dM%d,I%1dM%d,R', motor_number, obj.motor_speed, motor_number, MotorStep);
             sendcmd2serial(obj, MotorCmd);
             obj.curloc(motor_number) = obj.curloc(motor_number) + rel_distance;
+        end
+        
+        function move_absolute(obj, motor_number, location)
+            fprintf('Moving motor %d to location %5.2f\n', motor_number, location);
+            
+            MotorStep = round( location * obj.calibr(motor_number) );
+            MotorCmd = sprintf('C,S%1dM%d,IA%1dM+%d,R', motor_number, obj.motor_speed, motor_number, MotorStep);
+            sendcmd2serial(obj, MotorCmd);
+            obj.curloc(motor_number) = location;
         end
         
         function sethome(obj)
