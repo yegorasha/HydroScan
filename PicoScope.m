@@ -7,6 +7,7 @@ classdef PicoScope < handle
         sigGenGroupObj
         blockGroupObj
         timeIntervalNanoseconds
+        timebaseIndex
     end
     
     methods
@@ -37,10 +38,10 @@ classdef PicoScope < handle
         function configure_scope(obj)
             %%
             % Configure 2 scope channels for acquisition (after ID_Block_Example)
-            [status.setChA] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 0, 1, 1, 8, 0.0)
-            [status.setChB] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 1, 0, 1, 8, 0.0)
-            [status.setChC] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0)
-            [status.setChD] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0)
+            [status.setChA] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 0, 1, 1, 8, 0.0);
+            [status.setChB] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 1, 0, 1, 8, 0.0);
+            [status.setChC] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
+            [status.setChD] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
             % Block data acquisition properties and functions are located in the
             % Instrument Driver's Block group.
             blockGroupObj = get(obj.ps5000aDeviceObj, 'Block');
@@ -61,7 +62,7 @@ classdef PicoScope < handle
                     'ps5000aGetTimebase2', timebaseIndex, 0);
                 fprintf('Timebase index %d has time interval %6.4f ns and %d samples\n',...
                     timebaseIndex, timeIntervalNanoseconds, maxSamples);
-                if (status.getTimebase2 == 0)
+                if ( status.getTimebase2 == 0 & timeIntervalNanoseconds == 4 )
                     break;
                 else
                     timebaseIndex = timebaseIndex + 1;
@@ -70,7 +71,23 @@ classdef PicoScope < handle
             set(obj.ps5000aDeviceObj, 'timebase', timebaseIndex);
             
             obj.timeIntervalNanoseconds = timeIntervalNanoseconds;
+            obj.timebaseIndex = timebaseIndex;
             
+            [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(obj.ps5000aDeviceObj, ...
+                    'ps5000aGetTimebase2', timebaseIndex, 0);
+                fprintf('Scope timebase index %d with interval of %6.4f ns and %d samples IS SET\n',...
+                    timebaseIndex, timeIntervalNanoseconds, maxSamples);
+            
+        end
+        
+        function configure_scope_acquisition(obj, AcqTimeNanoSeconds)
+            
+            if ~isempty(obj.timeIntervalNanoseconds)
+                np = round(AcqTimeNanoSeconds/obj.timeIntervalNanoseconds)
+            else
+                np = str2num( get(obj.ps5000aDeviceObj, 'numPreTriggerSamples') );
+            end
+            set(obj.ps5000aDeviceObj, 'numPreTriggerSamples', np);
         end
         
         function configure_generator(obj, CarrierFrequency_Hz, NumberCycles, RepeatFrequency_Hz, Amplitude_V, PulseType)
@@ -79,6 +96,8 @@ classdef PicoScope < handle
             % are located in the Instrument Driver's Signalgenerator group
             sigGenGroupObj = get(obj.ps5000aDeviceObj, 'Signalgenerator');
             obj.sigGenGroupObj = sigGenGroupObj(1);
+            
+
             
             %%
             % Prepare arbitrary waveform for generator assuming certain repetition
@@ -113,7 +132,7 @@ classdef PicoScope < handle
             end
             
             y = normalise(y1);
-            figure(11), plot(t*1e6,y), grid, title('DEBUG info')
+%             figure(11), plot(t*1e6,y), grid, title('DEBUG info')
 %             return
             
             %%
@@ -151,6 +170,7 @@ classdef PicoScope < handle
             downsamplingRatioMode   = 0;
             [numSamples, overflow, chA, chB] = invoke(obj.blockGroupObj, 'getBlockData', startIndex, segmentIndex, ...
                 downsamplingRatio, downsamplingRatioMode);
+%             numSamples
 
             tin = obj.timeIntervalNanoseconds;
         end
