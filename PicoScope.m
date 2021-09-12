@@ -80,14 +80,18 @@ classdef PicoScope < handle
             
         end
         
-        function configure_scope_acquisition(obj, AcqTimeNanoSeconds)
+        function configure_scope_acquisition(obj, PreTriggerTime_ns, PostTriggerTime_ns)
             
             if ~isempty(obj.timeIntervalNanoseconds)
-                np = round(AcqTimeNanoSeconds/obj.timeIntervalNanoseconds)
+                np1 = round(PreTriggerTime_ns/obj.timeIntervalNanoseconds);
+                np2 = round(PostTriggerTime_ns/obj.timeIntervalNanoseconds);
             else
-                np = str2num( get(obj.ps5000aDeviceObj, 'numPreTriggerSamples') );
+                np1 = str2num( get(obj.ps5000aDeviceObj, 'numPreTriggerSamples') );
+                np2 = str2num( get(obj.ps5000aDeviceObj, 'numPostTriggerSamples') );
             end
-            set(obj.ps5000aDeviceObj, 'numPreTriggerSamples', np);
+%             [ np1 np2 ]
+            set(obj.ps5000aDeviceObj, 'numPreTriggerSamples', np1);
+            set(obj.ps5000aDeviceObj, 'numPostTriggerSamples', np2);
         end
         
         function configure_generator(obj, CarrierFrequency_Hz, NumberCycles, RepeatFrequency_Hz, Amplitude_V, PulseType)
