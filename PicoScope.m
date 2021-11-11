@@ -35,13 +35,14 @@ classdef PicoScope < handle
             end
         end
         
-        function configure_scope(obj)
+        function configure_scope(obj, VoltageRangeENUM)
             %%
             % Configure 2 scope channels for acquisition (after ID_Block_Example)
-            [status.setChA] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 0, 1, 1, 8, 0.0);
-            [status.setChB] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 1, 0, 1, 8, 0.0);
-            [status.setChC] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
-            [status.setChD] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
+            fprintf('Setting scope Voltage range to %d\n',VoltageRangeENUM);
+            [status.setChA] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 0, 1, 1, VoltageRangeENUM, 0.0);
+%             [status.setChB] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 1, 0, 1, 1, 0.0);
+%             [status.setChC] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 2, 0, 1, 8, 0.0);
+%             [status.setChD] = invoke(obj.ps5000aDeviceObj, 'ps5000aSetChannel', 3, 0, 1, 8, 0.0);
             % Block data acquisition properties and functions are located in the
             % Instrument Driver's Block group.
             blockGroupObj = get(obj.ps5000aDeviceObj, 'Block');
@@ -164,21 +165,75 @@ classdef PicoScope < handle
             %%
             % Acquire one block. This acquisition is expected to trigger generator to
             % deliver a precofigured burst
+            verborse = obj.ps5000aDeviceObj.displayOutput;
+            obj.ps5000aDeviceObj.displayOutput = 0;
+            
             [status.runBlock] = invoke(obj.blockGroupObj, 'runBlock', 0);
             
             %%
             % Retrieve acquired response
             startIndex              = 0;
             segmentIndex            = 0;
-            downsamplingRatio       = 1;
+            downsamplingRatio       = 1; %
             downsamplingRatioMode   = 0;
-            [numSamples, overflow, chA, chB] = invoke(obj.blockGroupObj, 'getBlockData', startIndex, segmentIndex, ...
+            [numSamples, overflow, chA] = invoke(obj.blockGroupObj, 'getBlockData', startIndex, segmentIndex, ...
                 downsamplingRatio, downsamplingRatioMode);
 %             numSamples
 
+            obj.ps5000aDeviceObj.displayOutput = verborse;
+            
+            
+            %%
+            % verify time base and time interval
+            timebaseIndex = get(obj.ps5000aDeviceObj, 'timebase');
+            [status.getTimebase2, timeIntervalNanoseconds, maxSamples] = invoke(obj.ps5000aDeviceObj, ...
+                'ps5000aGetTimebase2', timebaseIndex, 0);
+%             fprintf('Scope timebase index %d with interval of %6.4f ns and %d samples IS SET\n',...
+%                 timebaseIndex, timeIntervalNanoseconds, maxSamples);
+            obj.timeIntervalNanoseconds = timeIntervalNanoseconds;
             tin = obj.timeIntervalNanoseconds;
+
         end
         
+        function [chA_avg, tin_avg] = pulse_average(obj, ScanAverages, f1,f2)
+            [chA_avg, tin_avg] = obj.pulse();
+            
+            chA_avg = obj.band_pass_filter(chA_avg,1/obj.timeIntervalNanoseconds, f1, f2); % tin is ns 1/ns = GHz
+            
+            fprintf('.')
+            if ScanAverages>1
+                for k=2:ScanAverages
+                    fprintf('.')
+                    [chA, tin] = obj.pulse();
+                    chA = obj.band_pass_filter(chA,1/obj.timeIntervalNanoseconds, f1, f2); % tin is ns 1/ns = GHz
+                    chA_avg = (chA + (ScanAverages-1)*chA_avg)/ScanAverages;
+                end
+            end
+        end
+        
+                
+        function y = high_pass_filter(obj, x,Fs,fhp)
+%             t= 0:(1/Fs):1;   % Time Vector
+            N = length(x);
+            
+            %Compute Hamming window
+%             hamm = 0.53836-0.46164*cos(2*pi*(1:N)/N);
+            
+            f = linspace(-1,1,N)'*Fs/2;
+            HPF = fftshift(abs(f)>fhp);
+            
+            X=fft(x,N);
+            y = real(ifft(HPF.*X,N));
+        end
+
+        function y = band_pass_filter(obj, x, SamplingFrequency, flow, fhigh)
+            fn1 = 2*flow/SamplingFrequency;
+            fn2 = 2*fhigh/SamplingFrequency;
+            if fn1<0 | fn1>=fn2 | fn1>=1, disp('ERROR: Filter frequencies are not correct'), return, end
+            if fn2>=1, [bb, aa] = butter( 4,fn1, 'high');
+            else, [bb, aa] = butter( 4, [fn1 fn2] ); end
+            y = filtfilt( bb, aa, x );
+        end
     end
 end
 
