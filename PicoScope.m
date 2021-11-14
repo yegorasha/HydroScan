@@ -209,6 +209,7 @@ classdef PicoScope < handle
                     chA_avg = (chA + (ScanAverages-1)*chA_avg)/ScanAverages;
                 end
             end
+            fprintf('\n')
         end
         
                 
@@ -226,7 +227,12 @@ classdef PicoScope < handle
             y = real(ifft(HPF.*X,N));
         end
 
-        function y = band_pass_filter(obj, x, SamplingFrequency, flow, fhigh)
+        function y = band_pass_filter(obj, x, SamplingFrequency, f1, f2)
+            flow = min(f1,f2);
+            fhigh = max(f1,f2);
+            
+            if flow<=0 && fhigh <=0, y = x; return; end
+
             fn1 = 2*flow/SamplingFrequency;
             fn2 = 2*fhigh/SamplingFrequency;
             if fn1<0 | fn1>=fn2 | fn1>=1, disp('ERROR: Filter frequencies are not correct'), return, end
